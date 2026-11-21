@@ -1,0 +1,352 @@
+{
+ "at": 1795240713.3012989,
+ "hostname": "demo-box",
+ "box": {
+  "load": [
+   1.42,
+   1.18,
+   0.97
+  ],
+  "uptime_s": 277920,
+  "nproc": 16,
+  "cpu_model": "Example CPU 9000 (16 threads)",
+  "cpu": 11.6,
+  "cpu_hist": [
+   8,
+   9,
+   12,
+   10,
+   7,
+   9,
+   14,
+   22,
+   18,
+   12,
+   9,
+   8,
+   11,
+   10,
+   9,
+   13,
+   12,
+   11,
+   10,
+   12
+  ],
+  "mem": {
+   "total": 68719476736,
+   "available": 44023414784,
+   "swap_total": 8589934592,
+   "swap_free": 8589934592
+  },
+  "disk": {
+   "total": 1932735283200,
+   "used": 687194767360,
+   "fill_per_day": 1932735283.2,
+   "io": {
+    "read_bps": 2202009.6,
+    "write_bps": 629145.6
+   }
+  },
+  "hwmon": {
+   "cpu": 48.5,
+   "gpu": 41.0,
+   "nvme": 39.9,
+   "nic": 52.0,
+   "fan_rpm": 1150,
+   "gpu_w": 9.4,
+   "gpu_busy": 3
+  },
+  "procs": {
+   "top_cpu": [
+    {
+     "pid": 1201,
+     "name": "example-api",
+     "user": "demo",
+     "cpu": 6.2,
+     "rss": 325058560
+    },
+    {
+     "pid": 1302,
+     "name": "postgres",
+     "user": "demo\u00b7ctr",
+     "cpu": 2.4,
+     "rss": 545259520
+    },
+    {
+     "pid": 980,
+     "name": "gnome-shell",
+     "user": "demo",
+     "cpu": 1.1,
+     "rss": 429916160
+    },
+    {
+     "pid": 1404,
+     "name": "hud-collect.py",
+     "user": "demo",
+     "cpu": 0.6,
+     "rss": 29360128
+    },
+    {
+     "pid": 711,
+     "name": "tailscaled",
+     "user": "root",
+     "cpu": 0.3,
+     "rss": 62914560
+    }
+   ],
+   "top_mem": [
+    {
+     "pid": 1302,
+     "name": "postgres",
+     "user": "demo\u00b7ctr",
+     "cpu": 2.4,
+     "rss": 545259520
+    },
+    {
+     "pid": 980,
+     "name": "gnome-shell",
+     "user": "demo",
+     "cpu": 1.1,
+     "rss": 429916160
+    },
+    {
+     "pid": 1201,
+     "name": "example-api",
+     "user": "demo",
+     "cpu": 6.2,
+     "rss": 325058560
+    },
+    {
+     "pid": 1505,
+     "name": "WebKitWebProcess",
+     "user": "demo",
+     "cpu": 0.2,
+     "rss": 157286400
+    },
+    {
+     "pid": 711,
+     "name": "tailscaled",
+     "user": "root",
+     "cpu": 0.3,
+     "rss": 62914560
+    }
+   ],
+   "accounts": {
+    "demo": {
+     "cpu": 9.8,
+     "mem": 6657199308.8,
+     "tasks": 412,
+     "containers": 2
+    },
+    "builder": {
+     "cpu": 0.4,
+     "mem": 966367641.6,
+     "tasks": 40,
+     "containers": 1
+    }
+   }
+  },
+  "chrony": {
+   "offset_s": 4.1e-05,
+   "source": "time.example.org",
+   "leap": "Normal"
+  }
+ },
+ "net": {
+  "nic": "eth0",
+  "gateway_label": "router",
+  "expected_link_mbps": 2500,
+  "speed_mbps": 2500,
+  "oper": "up",
+  "wifi_oper": "down",
+  "rx_bps": 3200000.0,
+  "tx_bps": 800000.0,
+  "today_rx": 15247133900.8,
+  "today_tx": 3113851289.6,
+  "gateway": "10.0.0.1",
+  "dhcp_expiry": 1795251516.3012989,
+  "dhcp_lease_s": 14400,
+  "addrs": [
+   "10.0.0.20/24"
+  ],
+  "dns": [
+   "10.0.0.1"
+  ],
+  "tailnet_ip": "fd7a:115c:a1e0::20",
+  "ping_ms": {
+   "gateway": 0.3,
+   "1.1.1.1": 4.1,
+   "nas": 0.9
+  }
+ },
+ "ups": {
+  "status": "OL",
+  "charge": 100,
+  "runtime_s": 2580,
+  "load_pct": 14,
+  "realpower_w": 126.0,
+  "nominal_w": 900.0,
+  "input_v": 120.0,
+  "output_v": 120.0,
+  "charge_low": 15,
+  "runtime_low_s": 300,
+  "model": "Example UPS 1500",
+  "test_result": "Done and passed",
+  "units": {
+   "nut-driver@myups.service": "active",
+   "nut-server.service": "active",
+   "nut-monitor.service": "active"
+  }
+ },
+ "services": {
+  "units": {
+   "example-api.service": {
+    "label": "example API :8000",
+    "active": "active",
+    "since": 1795067916.3012989,
+    "restarts": 0
+   },
+   "example-web.service": {
+    "label": "example web :3000",
+    "active": "active",
+    "since": 1795067916.3012989,
+    "restarts": 1
+   },
+   "example-worker.service": {
+    "label": "background worker",
+    "active": "active",
+    "since": 1795222716.3012989,
+    "restarts": 0
+   }
+  },
+  "health": {
+   "api": {
+    "code": 200,
+    "ms": 12
+   },
+   "web": {
+    "code": 200,
+    "ms": 31
+   }
+  }
+ },
+ "misc": {
+  "system": {
+   "nut-server.service": {
+    "label": "upsd",
+    "active": "active",
+    "since": 1794981516.3012989,
+    "manual": false
+   },
+   "sshd.service": {
+    "label": "sshd",
+    "active": "active",
+    "since": 1794981516.3012989,
+    "manual": false
+   },
+   "tailscaled.service": {
+    "label": "tailscaled",
+    "active": "active",
+    "since": 1794981516.3012989,
+    "manual": false
+   },
+   "chronyd.service": {
+    "label": "chronyd",
+    "active": "active",
+    "since": 1794981516.3012989,
+    "manual": false
+   },
+   "cups.service": {
+    "label": "CUPS :631",
+    "active": "active",
+    "since": 1794981516.3012989,
+    "manual": false
+   },
+   "example-lab.service": {
+    "label": "lab VM (manual)",
+    "active": "inactive",
+    "since": null,
+    "manual": true
+   }
+  },
+  "user_timers": {
+   "backup-home.timer": {
+    "last": 1795215516.3012989,
+    "next": 1795301916.3012989
+   },
+   "dns-update.timer": {
+    "last": 1795240476.3012989,
+    "next": 1795240776.3012989
+   },
+   "uptime-check.timer": {
+    "last": 1795240686.3012989,
+    "next": 1795240746.3012989
+   }
+  },
+  "failed_system": [],
+  "failed_user": [],
+  "user_containers": [
+   {
+    "name": "example-db",
+    "status": "Up 2 days (healthy)"
+   },
+   {
+    "name": "example-cache",
+    "status": "Up 2 days"
+   }
+  ]
+ },
+ "tunnels": {
+  "web": {
+   "port": 20241,
+   "connections": 4,
+   "up": true,
+   "expected": 4
+  }
+ },
+ "slow": {
+  "at": 1795240691.3012989,
+  "egress": {
+   "ip": "203.0.113.45",
+   "colo": "XYZ",
+   "asns": [
+    "64500"
+   ],
+   "mode": "primary",
+   "label": "fiber",
+   "checked": true,
+   "failed": false,
+   "backup_cap_bytes": null
+  },
+  "tailscale": {
+   "online": true,
+   "dns": "demo-box.example",
+   "peers_online": 5,
+   "peers": 7
+  },
+  "public": {
+   "https://www.example.com/healthz": {
+    "code": 200,
+    "ms": 140
+   }
+  },
+  "events": [
+   {
+    "at": 1795208316.3012989,
+    "what": "UPS: on battery",
+    "kind": "ups"
+   },
+   {
+    "at": 1795208356.3012989,
+    "what": "UPS: back on mains",
+    "kind": "ups"
+   }
+  ],
+  "kernel": {
+   "running": "6.17.4-200.fc43.x86_64",
+   "newest": "6.17.4-200.fc43.x86_64"
+  },
+  "tpm_unlock": true
+ }
+}

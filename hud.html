@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Framework HUD</title>
+<!-- The Framework HUD page (docs/DESIGN.md). Every 5 s it reads host.json and app.json from the URLs in its query
+     string and calls window.render({now, idle_minutes, host, app}); it never talks to anything else. Black, monospaced, problems first in amber as sentences, no
+     red/green dots, no buttons: read-only by design. Sized in rem from the viewport width (24px at 4K). -->
+<style>
+:root{--bg:#000;--fg:#d2d2d2;--dim:#707070;--faint:#3c3c3c;--amber:#e3a52a;--line:#1b1b1b}
+html{font-size:calc(100vw / 142)}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Noto Sans Mono",ui-monospace,Menlo,monospace;cursor:none;overflow:hidden;height:100vh;display:flex;flex-direction:column}
+header{display:flex;justify-content:space-between;align-items:baseline;padding:1.1rem 2rem .5rem;border-bottom:1px solid var(--line)}
+.clock{font-size:3.2rem;font-weight:500;letter-spacing:.02em}
+.clock small{font-size:1.2rem;color:var(--dim);margin-left:1rem}
+.meta{font-size:1.1rem;color:var(--dim);text-align:right;line-height:1.5}
+#attention{padding:.5rem 2rem;font-size:1.15rem;line-height:1.5;color:var(--amber);min-height:1.7rem;max-height:4.4rem;border-bottom:1px solid var(--line);overflow:hidden}
+#attention.quiet{color:var(--dim)}
+main{flex:1;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr);gap:1px;background:var(--line);min-height:0}
+#p-box,#p-app{grid-column:span 2}
+section{background:var(--bg);padding:.9rem 1.5rem;overflow:hidden;display:flex;flex-direction:column;min-height:0}
+h2{font-size:.95rem;font-weight:500;color:var(--dim);text-transform:uppercase;letter-spacing:.14em;margin:0 0 .55rem;display:flex;justify-content:space-between;align-items:center}
+.badge{font-size:.95rem;letter-spacing:.1em;padding:.05rem .55rem;border:1px solid var(--dim);border-radius:.3rem;color:var(--fg)}
+.badge.warn{border-color:var(--amber);color:var(--amber)}
+ul.problems{color:var(--amber);font-size:1.02rem;margin:0 0 .5rem;padding:0;list-style:none;line-height:1.45}
+ul.problems li::before{content:"\25B2  "}
+.okline{color:var(--dim);font-size:.95rem;margin:0 0 .5rem}
+dl.kv{display:grid;grid-template-columns:max-content 1fr;gap:.1rem 1.1rem;font-size:1rem;line-height:1.5;margin:0}
+dl.kv dt{color:var(--dim);white-space:nowrap}
+dl.kv dd{margin:0;overflow-wrap:anywhere}
+#p-else .cols{grid-template-columns:1fr}
+dl.kv dd.warn{color:var(--amber)}
+.rows{font-size:.95rem;line-height:1.5}
+.rows .r{display:flex;gap:.7rem;white-space:nowrap;overflow:hidden}
+.rows .r .n{flex:1;overflow:hidden;text-overflow:ellipsis}
+.rows .r .v{color:var(--dim)}
+.rows .r.bad .v,.rows .r.bad .n{color:var(--amber)}
+.dot{display:inline-block;width:.45rem;height:.45rem;border-radius:50%;background:var(--fg);margin-right:.5rem;vertical-align:middle}
+.dot.off{background:var(--amber)}
+.dot.idle{background:var(--faint)}
+.bar{height:.45rem;background:var(--faint);border-radius:.25rem;overflow:hidden;margin:.25rem 0 .1rem}
+.bar i{display:block;height:100%;background:var(--fg)}
+.bar.warn i{background:var(--amber)}
+.big{font-size:2.1rem;line-height:1.1;font-weight:500}
+.big small{font-size:1rem;color:var(--dim);font-weight:400;margin-left:.6rem}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:0 1.4rem}
+.sub{font-size:.8rem;color:var(--dim);text-transform:uppercase;letter-spacing:.12em;margin:.55rem 0 .15rem}
+svg.spark{width:100%;height:2.2rem;display:block;margin:.2rem 0}
+#events{border-top:1px solid var(--line);padding:.45rem 2rem;font-size:.9rem;color:var(--dim);display:flex;flex-wrap:wrap;gap:.15rem 1.8rem;max-height:4.4rem;overflow:hidden}
+#events span b{color:var(--fg);font-weight:500;margin-right:.4rem}
+#events span.amber{color:var(--amber)}
+footer{display:flex;justify-content:space-between;padding:.35rem 2rem .7rem;font-size:.85rem;color:var(--faint);border-top:1px solid var(--line)}
+footer .stale{color:var(--amber)}
+.grow{flex:1;min-height:0;overflow:hidden}
+</style>
+</head>
+<body>
+<header>
+  <div class="clock"><span id="clock">--:--</span><small id="date"></small></div>
+  <div class="meta" id="meta">waiting for the first data</div>
+</header>
+<div id="attention" class="quiet">collecting…</div>
+<main>
+  <section id="p-net"></section>
+  <section id="p-power"></section>
+  <section id="p-box"></section>
+  <section id="p-app"></section>
+  <section id="p-services"></section>
+  <section id="p-else"></section>
+</main>
+<div id="events"></div>
+<footer><span id="sources"></span><span>any key or the mouse returns the desktop · Super+Shift+H shows this any time</span></footer>
+<script>
+"use strict";
+// ----- helpers
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const num = (v, d=0) => (v === null || v === undefined || Number.isNaN(+v)) ? "–" : (+v).toFixed(d);
+function bytes(b){ if (b === null || b === undefined) return "–"; const u=["B","KB","MB","GB","TB"]; let i=0; b=+b; while (b>=1024 && i<u.length-1){b/=1024;i++;} return (i>=3? b.toFixed(2): b.toFixed(i?1:0))+" "+u[i]; }
+function bytesNum(n){ if (n===null||n===undefined) return "–"; n=+n; return n>=1e6? (n/1e6).toFixed(1)+" M": (n>=1e3? (n/1e3).toFixed(0)+" k": String(n)); }
+function bits(bps){ if (bps===null||bps===undefined) return "–"; const u=["b/s","kb/s","Mb/s","Gb/s"]; let i=0; bps=+bps; while (bps>=1000&&i<u.length-1){bps/=1000;i++;} return bps.toFixed(i>=2?1:0)+" "+u[i]; }
+function dur(s){ if (s===null||s===undefined||!isFinite(s)) return "–"; s=Math.max(0,Math.round(+s)); const d=Math.floor(s/86400), h=Math.floor(s%86400/3600), m=Math.floor(s%3600/60); if (d) return `${d} d ${h} h`; if (h) return `${h} h ${m} m`; if (m) return `${m} min`; return `${s} s`; }
+function age(ts, now){ if (!ts) return "–"; return dur(now - ts) + " ago"; }
+function hhmm(ts){ if (!ts) return "–"; const d=new Date(ts*1000); return d.toTimeString().slice(0,5); }
+function hhmmFromIso(s, utc){ if (!s) return "–"; const d=new Date(String(s).replace(" ","T").slice(0,19) + (utc? "Z": "")); return isNaN(d)? String(s).slice(11,16): d.toTimeString().slice(0,5); }
+function epochFromIso(s){ if (!s) return null; const d=new Date(String(s).replace(" ","T").slice(0,19)); return isNaN(d)? null: d.getTime()/1000; }
+const dot = on => `<span class="dot ${on===true?'':(on===false?'off':'idle')}"></span>`;
+function badge(text, warn){ return `<span class="badge ${warn?'warn':''}">${esc(text)}</span>`; }
+function panel(id, title, badgeHtml, problems, bodyHtml){
+  const probs = problems.length ? `<ul class="problems">${problems.map(p=>`<li>${esc(p)}</li>`).join("")}</ul>` : `<div class="okline">ok</div>`;
+  $(id).innerHTML = `<h2><span>${esc(title)}</span>${badgeHtml||""}</h2>${probs}<div class="grow">${bodyHtml}</div>`;
+}
+function kv(pairs){ return `<dl class="kv">${pairs.filter(p=>p).map(([k,v,warn])=>`<dt>${esc(k)}</dt><dd class="${warn?'warn':''}">${v}</dd>`).join("")}</dl>`; }
+function rows(items){ return `<div class="rows">${items.map(([n,v,bad])=>`<div class="r ${bad?'bad':''}"><span class="n">${n}</span><span class="v">${v??""}</span></div>`).join("")}</div>`; }
+function bar(pct, warnAt){ const p=Math.max(0,Math.min(100,+pct||0)); return `<div class="bar ${warnAt!==undefined && p>=warnAt?'warn':''}"><i style="width:${p}%"></i></div>`; }
+function spark(vals){ if (!vals||vals.length<2) return ""; const w=300,h=40; const pts=vals.map((v,i)=>`${(i/(vals.length-1)*w).toFixed(1)},${(h-(Math.max(0,Math.min(100,v))/100)*h).toFixed(1)}`); return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline fill="none" stroke="#9a9a9a" stroke-width="1.5" points="${pts.join(" ")}"/></svg>`; }
+function cidr(addr){ if (!addr) return "–"; const [ip,len]=addr.split("/"); if (!len) return addr; const n=ip.split(".").map(Number); const mask=len==0?0:(~0<<(32-len))>>>0; const v=((n[0]<<24)|(n[1]<<16)|(n[2]<<8)|n[3])>>>0; const net=(v&mask)>>>0; const bc=(net|(~mask>>>0))>>>0; const f=x=>[x>>>24,(x>>>16)&255,(x>>>8)&255,x&255].join("."); return `${f(net)}/${len} (${f(net+1)} – ${f(bc-1)})`; }
+
+// ----- clock ticks on its own
+setInterval(()=>{ const d=new Date(); $("clock").textContent=d.toTimeString().slice(0,8); $("date").textContent=d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"}); }, 1000);
+
+// ----- render
+window.render = function(p){
+  const now = p.now || Date.now()/1000;
+  const H = p.host || {}, A = p.app || {};
+  const slow = H.slow || {};
+  const all = [];           // problems for the attention strip
+
+  // header meta
+  const box = H.box || {};
+  $("meta").innerHTML = `${esc(H.hostname||"framework")} · up ${dur(box.uptime_s)}<br>${esc(H.net?.addrs?.[0]?.split("/")[0]||"")} · ${esc(H.net?.tailnet_ip||"")}`;
+
+  // ===== Network
+  {
+    const n = H.net || {}, eg = slow.egress || {}, ts = slow.tailscale || {}, tun = H.tunnels || {};
+    const mode = eg.mode;
+    const probs = [];
+    if (mode === "backup") { const bu = slow.backup_usage; probs.push(`on ${eg.label||"backup line"}${bu? " since "+hhmm(bu.since)+", "+bytes(bu.bytes)+(eg.backup_cap_bytes? " of "+bytes(eg.backup_cap_bytes): "")+" used": ""}`); }
+    if (eg.checked && eg.failed) probs.push("cannot tell the primary line from backup (egress check failed)");
+    if (n.oper !== "up") probs.push(`${n.nic||"NIC"} is ${n.oper||"unknown"}`);
+    else if (n.expected_link_mbps && n.speed_mbps && n.speed_mbps < n.expected_link_mbps) probs.push(`link at ${n.speed_mbps} Mb/s, not ${n.expected_link_mbps}`);
+    for (const [k,v] of Object.entries(n.ping_ms||{})) if (v===null) probs.push(`${k} not answering pings`);
+    if (ts.online === false) probs.push("tailscale offline");
+    for (const [name,t] of Object.entries(tun)) { const want = t.expected||4; if (!t.up) probs.push(`${name} tunnel not answering`); else if (t.connections!==null && t.connections<want) probs.push(`${name} tunnel ${t.connections}/${want} connections`); }
+    if (n.dhcp_expiry && n.dhcp_expiry - now < 600) probs.push(`DHCP lease ends in ${dur(n.dhcp_expiry-now)}`);
+    all.push(...probs);
+    const pings = Object.entries(n.ping_ms||{}).map(([k,v])=>`${k} ${v===null?"–":num(v,v<10?1:0)+" ms"}`).join(" · ");
+    const tunnels = Object.entries(tun).map(([k,t])=>`${k} ${t.connections??"–"}/${t.expected||4}`).join(" · ");
+    panel("p-net","Network", badge(mode? String(eg.label||mode).toUpperCase(): "UPLINK", mode==="backup"), probs, kv([
+      ["local", `${esc(n.addrs?.[0]||"–")} via ${esc(n.gateway||"–")}${n.gateway_label? " ("+esc(n.gateway_label)+")": ""}`],
+      ["subnet", esc(cidr(n.addrs?.[0]))],
+      ["dhcp", n.dhcp_expiry? `lease ${dur(n.dhcp_lease_s)}, renews in ${dur(n.dhcp_expiry-now)} · dns ${esc((n.dns||[]).join(", "))}`: "–"],
+      ["link", `${esc(n.nic)} ${n.speed_mbps? (n.speed_mbps>=1000? (n.speed_mbps/1000)+" GbE": n.speed_mbps+" Mb/s"):"–"} ${esc(n.oper)} · wi-fi ${esc(n.wifi_oper||"–")}`],
+      ["traffic", `↓ ${bits(n.rx_bps)} ↑ ${bits(n.tx_bps)} · today ↓ ${bytes(n.today_rx)} ↑ ${bytes(n.today_tx)}`],
+      ["tailnet", `${esc(n.tailnet_ip||"–")} ${esc(ts.dns||"")} · peers ${ts.peers_online??"–"}/${ts.peers??"–"}`],
+      ["wan", `${esc(eg.ip||"–")} · ${(eg.asns||[]).map(a=>"AS"+esc(a)).join(" ")||"AS ?"} ${esc(eg.label||"")} · colo ${esc(eg.colo||"–")}`, mode==="backup"],
+      ["pings", esc(pings)],
+      ["tunnels", esc(tunnels||"–")],
+    ]));
+  }
+
+  // ===== Power
+  {
+    const u = H.ups || {};
+    const st = u.status || "";
+    const onBatt = st.includes("OB"), low = st.includes("LB");
+    const probs = [];
+    if (u.error) probs.push("UPS not answering: " + u.error);
+    if (onBatt) probs.push(`ON BATTERY: ${u.charge}% , about ${dur(u.runtime_s)} left${low? " · LOW: powering off soon": ""}`);
+    for (const [unit,a] of Object.entries(u.units||{})) if (a!=="active") probs.push(`${unit.replace(".service","")} is ${a||"missing"}`);
+    all.push(...probs);
+    const last = (slow.events||[]).filter(e=>e.kind==="ups").sort((a,b)=>b.at-a.at)[0];
+    const word = u.disabled? "NO UPS": (low? "LOW BATTERY": (onBatt? "ON BATTERY": (st.includes("OL")? "ON MAINS": (st||"?"))));
+    panel("p-power","Power · "+(u.model||"UPS"), badge(word, onBatt||low||!!u.error), probs, u.disabled? `<div class="okline">no UPS configured (set "ups" in config.json)</div>`:
+      `<div class="big">${num(u.charge)} %<small>charge${st.includes("CHRG")?", charging":""}${st.includes("DISCHRG")?", discharging":""}</small></div>${bar(u.charge, 101)}
+       <div class="big" style="margin-top:.4rem">${dur(u.runtime_s)}<small>runtime at ${num(u.realpower_w)} W</small></div>` +
+      kv([
+        ["load", `${num(u.realpower_w)} W of ${num(u.nominal_w)} (${num(u.load_pct)} %)`],
+        ["input", `${num(u.input_v)} V · output ${num(u.output_v)} V`],
+        ["low battery", `at ${dur(u.runtime_low_s)} left or ${num(u.charge_low)} %`],
+        ["last event", last? `${esc(last.what)} · ${hhmm(last.at)} (${age(last.at, now)})`: "none in 24 h"],
+        ["nut", Object.entries(u.units||{}).map(([k,a])=>`${esc(k.split(".")[0].replace("nut-",""))} ${esc(a)}`).join(" · ")],
+        ["self-test", esc(u.test_result||"–")],
+      ]));
+  }
+
+  // ===== Box
+  {
+    const b = box, m = b.mem||{}, d = b.disk||{}, hw = b.hwmon||{}, pr = b.procs||{}, ch = b.chrony||{};
+    const misc = H.misc || {}, k = slow.kernel || {};
+    const probs = [];
+    const diskPct = d.total? 100*d.used/d.total: null;
+    if (diskPct !== null && diskPct > 85) probs.push(`disk ${num(diskPct)} % full`);
+    if (hw.cpu && hw.cpu > 90) probs.push(`CPU at ${hw.cpu} °C`);
+    if (m.total && m.available/m.total < 0.1) probs.push(`memory: ${bytes(m.available)} available`);
+    if ((misc.failed_system||[]).length) probs.push(`failed system units: ${misc.failed_system.join(", ")}`);
+    if ((misc.failed_user||[]).length) probs.push(`failed user units: ${misc.failed_user.join(", ")}`);
+    if (ch.offset_s !== undefined && Math.abs(ch.offset_s) > 0.5) probs.push(`clock off by ${num(ch.offset_s,2)} s`);
+    all.push(...probs);
+    const notes = [];
+    if (k.newest && k.running && k.newest !== k.running) notes.push(`reboot pending: kernel ${k.newest} installed, running ${k.running}`);
+    const top = (pr.top_cpu||[]).map(r=>[`${esc(r.name)} <span style="color:var(--dim)">${esc(r.user)}</span>`, `${num(r.cpu)} %`]);
+    const topm = (pr.top_mem||[]).map(r=>[`${esc(r.name)} <span style="color:var(--dim)">${esc(r.user)}</span>`, bytes(r.rss)]);
+    const acc = Object.entries(pr.accounts||{}).map(([u,a])=>[esc(u), `${a.cpu===null||a.cpu===undefined?"–":num(a.cpu)+" %"} · ${bytes(a.mem)} · ${a.containers} ctr`]);
+    panel("p-box", "Box" + (b.cpu_model? " · " + b.cpu_model: ""), badge(`${num(b.cpu)} % cpu`, false), probs,
+      `<div class="cols"><div>` + kv([
+        ["uptime", `${dur(b.uptime_s)} · load ${(b.load||[]).map(x=>num(x,2)).join(" ")} / ${b.nproc||"–"}`],
+        ["cpu", `${num(b.cpu)} % ${spark(b.cpu_hist)}`],
+        ["gpu", `${hw.gpu_busy??"–"} % · ${num(hw.gpu_w)} W`],
+        ["memory", `${bytes(m.total - m.available)} of ${bytes(m.total)}${bar(100*(m.total-m.available)/m.total, 90)}`],
+        ["disk", `${bytes(d.used)} of ${bytes(d.total)}${d.fill_per_day? ` · ${d.fill_per_day>=0?"+":""}${bytes(d.fill_per_day)}/day`: ""}${bar(diskPct, 85)}`],
+        ["nvme", d.io? `read ${bytes(d.io.read_bps)}/s · write ${bytes(d.io.write_bps)}/s`: "–"],
+        ["temps", `cpu ${num(hw.cpu)}° gpu ${num(hw.gpu)}° nvme ${num(hw.nvme)}° nic ${num(hw.nic)}° · fan ${hw.fan_rpm??"–"} rpm`],
+        ["clock", ch.offset_s!==undefined? `${ch.offset_s>=0?"+":""}${num(ch.offset_s*1000,1)} ms via ${esc(ch.source||"?")}`: "–"],
+        ["kernel", `${esc(k.running||"–")}${k.newest && k.newest!==k.running? ` · ${esc(k.newest)} installed`: ""}`],
+        notes.length? ["note", esc(notes.join("; "))]: null,
+      ]) + `</div><div><div class="sub">top cpu</div>${rows(top)}<div class="sub">top memory</div>${rows(topm)}<div class="sub">per account</div>${rows(acc)}</div></div>`);
+  }
+
+  // ===== App: whatever one app collector reports (contract in README.md, "Adding a collector")
+  {
+    const probs = [];
+    const missing = !!A.error && !A.at;
+    if (!missing) {
+      if (A.at && now - A.at > 60) probs.push(`app data is ${dur(now-A.at)} old`);
+      for (const s of A.problems||[]) probs.push(String(s));
+      for (const s of A.services||[]) { const ok = s.ok !== undefined ? s.ok : s.state === "active"; if (!ok && !s.expected) probs.push(`${s.label} is ${s.state||"missing"}`); }
+    }
+    all.push(...probs);
+    const svcRows = (A.services||[]).map(s=>{ const ok = s.ok !== undefined ? s.ok : s.state === "active"; return [`${dot(s.expected? null: ok)}${esc(s.label)}${s.port? ` <span style="color:var(--dim)">:${esc(s.port)}</span>`:""}`, esc(s.detail || (ok? `up ${dur(now - (s.since||now))}${s.restarts? " · "+s.restarts+" restarts": ""}`: (s.state||"missing"))), !ok && !s.expected]; });
+    const facts = (A.facts||[]).map(([k,v,warn])=>[esc(k), esc(v), !!warn]);
+    const list = (A.list||[]).map(r=>[`${dot(!r.bad)}${esc(r.name)}`, esc(r.value), !!r.bad]);
+    const b = A.badge || {};
+    panel("p-app", A.title || "App", missing? badge("NO DATA", false): badge(b.text||"OK", !!b.warn), probs, missing
+      ? `<div class="okline">no app collector yet: write ~/.cache/framework-hud/app.json (see examples/example-collector.py)</div>`
+      : `<div class="cols"><div><div class="sub">${esc(A.services_title||"services")}</div>${rows(svcRows)}</div><div><div class="sub">${esc(A.facts_title||"details")}</div>` + kv(facts) +
+        (list.length? `<div class="sub">${esc(A.list_title||"list")}</div>${rows(list)}`: "") + `</div></div>`);
+  }
+
+  // ===== Services: your user units and local health URLs (config: user_units, health_checks, public_urls)
+  {
+    const s = H.services || {}, pub = slow.public || {};
+    const probs = [];
+    for (const [unit,u] of Object.entries(s.units||{})) if (u.active !== "active") probs.push(`${u.label} (${unit.replace(".service","")}) is ${u.active||"missing"}`);
+    for (const [name,h] of Object.entries(s.health||{})) if (h.code !== 200) probs.push(`${name} healthz ${h.code??"no answer"}`);
+    for (const [url,h] of Object.entries(pub)) if (h.code !== 200) probs.push(`${url.replace(/^https?:\/\//,"")} ${h.code??"no answer"}`);
+    all.push(...probs);
+    const units = Object.entries(s.units||{}).map(([unit,u])=>[`${dot(u.active==="active")}${esc(u.label)}`, u.active==="active"? `up ${dur(now-(u.since||now))}${u.restarts? " · "+u.restarts+" restarts":""}`: esc(u.active||"missing"), u.active!=="active"]);
+    const health = Object.entries(s.health||{}).map(([name,h])=>[`${dot(h.code===200)}${esc(name)}`, `${h.code??"no answer"} · ${h.ms??"–"} ms`, h.code!==200]);
+    const pubs = Object.entries(pub).map(([url,h])=>[`${dot(h.code===200)}${esc(url.replace(/^https?:\/\//,""))}`, `${h.code??"no answer"} · ${h.ms??"–"} ms`, h.code!==200]);
+    const total = units.length + health.length + pubs.length, up = [...units, ...health, ...pubs].filter(r=>!r[2]).length;
+    panel("p-services", "Services", badge(`${up}/${total} up`, up<total), probs,
+      `<div class="sub">services</div>${rows(units)}<div class="sub">health checks</div>${rows(health)}` + (pubs.length? `<div class="sub">public</div>${rows(pubs)}`: ""));
+  }
+
+  // ===== Everything else
+  {
+    const misc = H.misc || {}, sys = misc.system || {}, tmr = misc.user_timers || {};
+    const probs = [];
+    const items = Object.entries(sys).map(([unit,u])=>{ const on = u.active==="active"; const manual = !!u.manual; return [`${dot(manual && !on? null: on)}${esc(u.label)}`, on? `up ${dur(now-(u.since||now))}`: (manual? "off (manual start)": esc(u.active||"missing")), !on && !manual]; });
+    for (const it of items) if (it[2]) probs.push(`${it[0].replace(/<[^>]+>/g,"")} is down`);
+    const timers = Object.entries(tmr).map(([unit,t])=>[esc(unit.replace(".timer","")), `last ${t.last? age(t.last, now): "–"} · next ${t.next? dur(t.next-now): "–"}`]);
+    const ctr = (misc.user_containers||[]).map(c=>[`${dot(/^Up/.test(c.status||""))}${esc(c.name)}`, esc(c.status||"")]);
+    all.push(...probs);
+    panel("p-else", "Everything else on the box", badge(`${items.filter(i=>!i[2]).length}/${items.length} up`, probs.length>0), probs,
+      `<div class="cols"><div><div class="sub">services</div>${rows(items)}</div><div><div class="sub">your timers</div>${rows(timers)}<div class="sub">your containers</div>${rows(ctr)}</div></div>`);
+  }
+
+  // ===== attention strip, events, footer
+  const att = $("attention");
+  if (all.length) { att.className = ""; att.textContent = `ATTENTION · ${all.length}: ` + all.join("  ·  "); }
+  else { att.className = "quiet"; att.textContent = "all systems report ok"; }
+
+  const ev = [...(slow.events||[]), ...(A.events||[])].filter(e=>e.at && now - e.at < 24*3600).sort((a,b)=>b.at-a.at).slice(0, 18);
+  $("events").innerHTML = ev.length ? ev.map(e=>`<span class="${["ups","role","job"].includes(e.kind)?"amber":""}"><b>${hhmm(e.at)}</b>${esc(e.what)}</span>`).join("") : `<span>quiet: nothing in the last 24 hours</span>`;
+
+  const src = [["host", H.at], ["app", A.at], ["slow probes", slow.at]].map(([k,t])=>{ const a = t? now-t: null; return `<span class="${a===null||a>90?"stale":""}">${k} ${a===null?"missing":dur(a)+" ago"}</span>`; });
+  $("sources").innerHTML = src.join(" · ") + ` · hud opens after ${p.idle_minutes} min idle`;
+};
+
+// ----- the page fetches its own data (hud.py passes the two file:// URLs and the idle minutes in the query string;
+// the window process runs no JavaScript at all). A preview harness can call window.render() directly instead.
+(function poll(){
+  const q = new URLSearchParams(location.search);
+  const hostUrl = q.get("host"), appUrl = q.get("app");
+  if (!hostUrl) return;
+  const idle = parseFloat(q.get("idle") || "10");
+  async function grab(url){ if (!url) return {error: "no app url"}; try { const r = await fetch(url, {cache: "no-store"}); return await r.json(); } catch (e) { return {error: `${url.split("/").pop()}: ${e.name}`}; } }
+  async function tick(){
+    const [host, app] = await Promise.all([grab(hostUrl), grab(appUrl)]);
+    try { window.render({now: Date.now()/1000, idle_minutes: idle, host, app}); }
+    catch (e) { console.error("render failed:", e); $("attention").textContent = "render failed: " + e.message; }
+  }
+  tick();
+  setInterval(tick, 5000);
+})();
+</script>
+</body>
+</html>

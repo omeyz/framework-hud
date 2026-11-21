@@ -1,0 +1,12 @@
+[Unit]
+Description=Framework HUD host collector: host, UPS, network and service facts every 10 s (read-only)
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/lib/framework-hud/hud-collect.py
+Nice=10
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

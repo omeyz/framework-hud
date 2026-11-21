@@ -1,0 +1,18 @@
+[Unit]
+Description=Framework HUD: the machine's state on its monitor while nobody is at the desk
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/lib/framework-hud/hud.py
+Environment=HUD_IDLE_MINUTES=10
+# Where the App panel reads from (default ~/.cache/framework-hud/app.json):
+#Environment=HUD_APP_JSON=/run/myapp-hud/app.json
+# GL, not Vulkan: GTK's Vulkan renderer logged swapchain stalls on a 4K HDMI output
+Environment=GSK_RENDERER=ngl
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,0 +1,30 @@
+{
+  "nic": "eth0",
+  "wifi": "wlan0",
+  "gateway_label": "router",
+  "expected_link_mbps": 2500,
+  "pings": {"gateway": "10.0.0.1", "1.1.1.1": "1.1.1.1", "nas": "10.0.0.5"},
+  "uplink": {"primary_asn": "64500", "primary_label": "fiber", "backup_label": "backup LTE", "backup_cap_gb": 100},
+  "ups": "myups@localhost",
+  "disk_path": "/",
+  "disk_device": "nvme0n1",
+  "system_units": [
+    ["nut-server.service", "upsd"],
+    ["sshd.service", "sshd"],
+    ["tailscaled.service", "tailscaled"],
+    ["chronyd.service", "chronyd"],
+    ["cups.service", "CUPS :631"],
+    ["example-lab.service", "lab VM (manual)"]
+  ],
+  "manual_units": ["example-lab.service"],
+  "user_units": [
+    ["example-api.service", "example API :8000"],
+    ["example-web.service", "example web :3000"]
+  ],
+  "health_checks": {"api": "http://127.0.0.1:8000/healthz", "web": "http://127.0.0.1:3000/healthz"},
+  "public_urls": ["https://www.example.com/healthz"],
+  "user_timers": null,
+  "tunnels": {"web": 20241},
+  "tunnel_connections": 4,
+  "accounts": null
+}

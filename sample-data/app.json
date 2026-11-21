@@ -1,0 +1,93 @@
+{
+ "at": 1795240712.3012989,
+ "title": "App \u00b7 Example Shop (demo)",
+ "badge": {
+  "text": "PRIMARY",
+  "warn": false
+ },
+ "problems": [
+  "1 job failed today: nightly-report"
+ ],
+ "services_title": "services",
+ "services": [
+  {
+   "label": "API",
+   "port": 8010,
+   "state": "active",
+   "since": 1795067916.3012989,
+   "detail": "healthz 200 \u00b7 up 2 d 0 h"
+  },
+  {
+   "label": "web",
+   "port": 3010,
+   "state": "active",
+   "since": 1795067916.3012989
+  },
+  {
+   "label": "database",
+   "port": 5432,
+   "state": "active",
+   "since": 1795067916.3012989,
+   "detail": "healthy \u00b7 1.2 GB"
+  },
+  {
+   "label": "queue worker",
+   "state": "active",
+   "since": 1795229916.3012989,
+   "restarts": 2
+  },
+  {
+   "label": "replica sync",
+   "state": "inactive",
+   "expected": true,
+   "detail": "stopped (by design)"
+  }
+ ],
+ "facts_title": "jobs",
+ "facts": [
+  [
+   "timers",
+   "24 active \u00b7 next: cleanup 12 min"
+  ],
+  [
+   "failed",
+   "nightly-report 04:10",
+   true
+  ],
+  [
+   "backups",
+   "database \u2713 02:30 \u00b7 files \u2713 03:15"
+  ],
+  [
+   "deploy",
+   "abc1234 at 09:05"
+  ]
+ ],
+ "list_title": "accounts",
+ "list": [
+  {
+   "name": "account-a",
+   "value": "ok 10:02"
+  },
+  {
+   "name": "account-b",
+   "value": "ok 10:01"
+  },
+  {
+   "name": "marketplace",
+   "value": "ok 09:58"
+  }
+ ],
+ "events": [
+  {
+   "at": 1795229916.3012989,
+   "what": "deploy abc1234",
+   "kind": "deploy"
+  },
+  {
+   "at": 1795219116.3012989,
+   "what": "job failed: nightly-report",
+   "kind": "job"
+  }
+ ]
+}
